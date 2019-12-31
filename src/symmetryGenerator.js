@@ -284,42 +284,39 @@ const transformAffineSet = function(transformAf, Afset) {
 };
 
 // generates unique subset of array ar using equivalency function eqfunc
-const uniques = function(ar, eqfunc) {
+const uniques = function(ar, eqfunc, discard_func) {
   eqfunc = eqfunc || ((x, y) => x === y);
+  discard_func = discard_func || (() => false);
   let i = 0;
-  let j = 0;
   const len = ar.length;
   let sameQ = false;
   const newar = [];
   i = 0;
   while (i < len) {
     sameQ = false;
-    j = i + 1;
-    while (j < len) {
-      if (eqfunc(ar[i], ar[j])) {
+    for (let j = 0; j < newar.length; ++j) {
+      if (eqfunc(ar[i], newar[j])) {
         sameQ = true;
         break;
       }
-      else {}
-      j += 1;
     }
-    if (!sameQ) { newar.push(ar[i]); }
+    if (!sameQ && !discard_func(ar[i])) { newar.push(ar[i]); }
     i += 1;
   }
   return newar;
 };
 
 const uniqueaffineset =
-    Afset => uniques(Afset, (x, y) => x.sameAs(y));
+    (Afset, discard_func) => uniques(Afset, (x, y) => x.sameAs(y), discard_func);
 
-const findclosure = function(Afset, recursion_limit) {
+const findclosure = function(Afset, recursion_limit, discard_func) {
   let uniqueset;
   recursion_limit = recursion_limit || 3;
   let oldset = Afset;
   let i = 0;
   while (i < recursion_limit) {
     const setprod = affinesetproduct(Afset, Afset).concat(Afset);
-    uniqueset = uniqueaffineset(setprod);
+    uniqueset = uniqueaffineset(setprod, discard_func);
     if (oldset === uniqueset) { break; }
     Afset = uniqueset;
     oldset = uniqueset;
@@ -726,11 +723,11 @@ class MobiusTransform {
                 D_im: m1.B_re * m2.C_im + m1.B_im * m2.C_re + m1.D_re * m2.D_im + m1.D_im * m2.D_re};
     const Dmag = m3.D_re * m3.D_re + m3.D_im * m3.D_im;
     const m3_norm = {A_re: (m3.A_re * m3.D_re + m3.A_im * m3.D_im) / Dmag,
-                     A_im: (m3.A_id * m3.D_re - m3.A_re * m3.D_im) / Dmag,
+                     A_im: (m3.A_im * m3.D_re - m3.A_re * m3.D_im) / Dmag,
                      B_re: (m3.B_re * m3.D_re + m3.B_im * m3.D_im) / Dmag,
-                     B_im: (m3.B_id * m3.D_re - m3.B_re * m3.D_im) / Dmag,
+                     B_im: (m3.B_im * m3.D_re - m3.B_re * m3.D_im) / Dmag,
                      C_re: (m3.C_re * m3.D_re + m3.C_im * m3.D_im) / Dmag,
-                     C_im: (m3.C_id * m3.D_re - m3.C_re * m3.D_im) / Dmag};
+                     C_im: (m3.C_im * m3.D_re - m3.C_re * m3.D_im) / Dmag};
     const Mout = new MobiusTransform();
     Mout.phi = Math.atan2(m3_norm.A_im, m3_norm.A_re);
     const Amag = m3_norm.A_re * m3_norm.A_re + m3_norm.A_im * m3_norm.A_im;
@@ -807,6 +804,64 @@ class MobiusTransform {
   }
 }
 
+//Mobius transform operating on screen pixel coordinates rather than absolute unit-disk coordinates
+//--------------------------------------------------------------------------------------------------
+
+class PixelMobiusTransform {
+  constructor(M, scale, xoff, yoff) {
+    this.M = M;
+    this.scale = scale;
+    this.xoff = xoff;
+    this.yoff = yoff;
+  }
+
+  // A.multiply(B) = A*B
+  multiply(PMin) {
+    const PMout = new PixelMobiusTransform();
+    PMout.M = this.M.multiply(PMin.M);
+    PMout.scale = this.scale; // TODO what if this and PMin have different values? can it happen?
+    PMout.xoff = this.xoff;
+    PMout.yoff = this.yoff;
+    return PMout;
+  }
+
+  // A.Lmultiply(B) = B*A
+  Lmultiply(Min) {
+    const PMout = new PixelMobiusTransform();
+    PMout.M = PMin.M.multiply(Min.M);
+    PMout.scale = this.scale;
+    PMout.xoff = this.xoff;
+    PMout.yoff = this.yoff;
+    return PMout;
+  }
+
+  inverse() {
+    const PMout = new PixelMobiusTransform();
+    PMout.M = this.M.inverse();
+    PMout.scale = this.scale;
+    PMout.xoff = this.xoff;
+    PMout.yoff = this.yoff;
+    return PMout;
+  }
+
+  on(px, py) {
+    const x = (px - this.xoff)/this.scale;
+    const y = (py - this.yoff)/this.scale;
+    const vec = this.M.on(x, y);
+    return [vec[0]*this.scale + this.xoff, vec[1]*this.scale + this.yoff];
+  }
+
+  onVec(x) {
+    return this.on(x[0], x[1]);
+  }
+
+  // approximate comparison function
+  sameAs(PMin, tol) {
+    tol = tol || 1e-8;
+    return this.M.sameAs(PMin.M, tol); // TODO what if scale, xoff, yoff different
+  }
+}
+
 //Common Hyperbolic Isometries
 //--------------------------------------------------------------------------------------------------
 
@@ -835,21 +890,11 @@ export const HGlideTransform =
 //--------------------------------------------------------------------------------------------------
 
 export const generateHyperbolic = function(spec, nx, ny, d, phi, x, y) {
-  let rotset = [];
-  let refset = [];
-  let glideset = [];
-  let Afset = [];
-  let transset = [];
-  const { rots } = spec;
-  const { refs } = spec;
-  const { vec0 } = spec;
-  const { vec1 } = spec;
-
-  rotset.push(HIdentityTransform());
-
-  rotset.push(new MobiusTransform(0, 0.1, 0));
-
-  return rotset;
+  const basisset = [new PixelMobiusTransform(new MobiusTransform(0, 0, PI*2/7), d, x, y),
+    new PixelMobiusTransform(new MobiusTransform(0, 0, 0), d, x, y),
+    new PixelMobiusTransform(new MobiusTransform(0.496970425395180896221180392445188538017515047404695435924, 0, PI/7), d, x, y)];
+  const myset = findclosure(basisset, 4, (pmt => pmt.M.x * pmt.M.x + pmt.M.y * pmt.M.y > 0.95));
+  return myset;
 };
 
 //Wallpaper Symmetry Specification
