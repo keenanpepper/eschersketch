@@ -792,8 +792,8 @@ class MobiusTransform {
     tol = tol || 1e-8;
     let sum = 0;
     let phidiff = abs(this.phi - Min.phi);
-    while (phidiff > Math.pi) { phidiff -= 2*Math.pi; }
-    sum += phidiff;
+    while (phidiff > Math.PI) { phidiff -= 2*Math.PI; }
+    sum += abs(phidiff);
     sum += abs(this.x - Min.x);
     sum += abs(this.y - Min.y);
     if (sum < tol) {
