@@ -37,7 +37,8 @@ require('./libs/modernizr-custom.js');
 //------------------------------------------------------------------------------
 import {deepClone, lsGetJSON, lsSaveJSON, lsDelJSON} from './utils';
 import {pixelFix, setCanvasPixelDensity, parseColor} from './canvas_utils';
-import {generateTiling, planarSymmetries, RosetteGroup, IdentitySet} from './symmetryGenerator';
+import {generateTiling, planarSymmetries, RosetteGroup, IdentitySet,
+  generateHyperbolic, hyperbolicSymmetries} from './symmetryGenerator';
 import {networkConfig} from './config';
 
 // Import all the Drawing Tools
@@ -291,6 +292,8 @@ export const drawKeyToOrderMap = {
 //-------------------------------------------------------------------------------------------------
 const memo_generateTiling = _.memoize(generateTiling,
                                 function(){return JSON.stringify(arguments);});
+const memo_generateHyperbolic = _.memoize(generateHyperbolic,
+                                function(){return JSON.stringify(arguments);});
 
 export const updateSymmetry = function(symmState) {
 
@@ -313,6 +316,12 @@ export const updateSymmetry = function(symmState) {
                                     gS.symmState.Nx,gS.symmState.Ny,
                                     gS.symmState.d, gS.symmState.t,
                                     gS.symmState.x, gS.symmState.y);
+  }
+  else if(Object.keys(hyperbolicSymmetries).includes(gS.symmState.sym)) {
+    affineset = memo_generateHyperbolic(hyperbolicSymmetries[gS.symmState.sym],
+                                        gS.symmState.Nx,gS.symmState.Ny,
+                                        gS.symmState.d, gS.symmState.t,
+                                        gS.symmState.x, gS.symmState.y);
   }
   else {
     affineset = RosetteGroup(gS.symmState.Nrot,

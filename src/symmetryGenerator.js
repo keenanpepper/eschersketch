@@ -241,11 +241,6 @@ class AffineTransform {
 export const IdentityTransform =
     () => new AffineTransform(1, 0, 0, 1, 0, 0);
 
-export const ScalingTransform = function(scale, scaley) {
-  scaley = scaley || scale;
-  return new AffineTransform(scale, 0, 0, scaley, 0, 0);
-};
-
 export const RotationTransform =
     angle => new AffineTransform(Math.cos(angle), Math.sin(angle), -1 * Math.sin(angle), Math.cos(angle), 0, 0);
 
@@ -254,9 +249,6 @@ export const TranslationTransform =
 
 export const ReflectionTransform =
     angle => new AffineTransform(Math.cos(2 * angle), Math.sin(2 * angle), Math.sin(2 * angle), -1 * Math.cos(2 * angle), 0, 0);
-
-export const ScalingAbout =
-    (scale, px, py) => TranslationTransform(px, py).multiply(ScalingTransform(scale)).multiply(TranslationTransform(-px, -py));
 
 export const RotationAbout =
     (angle, px, py) => TranslationTransform(px, py).multiply(RotationTransform(angle)).multiply(TranslationTransform(-px, -py));
@@ -347,9 +339,9 @@ const findclosure = function(Afset, recursion_limit) {
 const makegrid = function(nx, ny, d) {
     const Afs = [];
     for (var i = 0; i < nx; i++) {
-    	for (var j = 0; j < ny; j++) {
-    	    Afs.push(TranslationTransform(i * d, j * d));
-    	}
+    for (var j = 0; j < ny; j++) {
+        Afs.push(TranslationTransform(i * d, j * d));
+    }
     }
     return Afs;
 };
@@ -412,7 +404,7 @@ const multiRosette3 = function(n1, n2, n3, a, d, skew, x, y) {
   let afset = [];
   for (var i = 0; i < n2; i++) { // rotation loop
       for (let j = 1; j < n3; j++) {// scale loop
-	  const afop = RotationAbout(j*PI*skew, x, y).multiply( //skew
+  const afop = RotationAbout(j*PI*skew, x, y).multiply( //skew
           TranslationTransform(j*d*cos((i*2*PI)/n2), j*d*sin((i*2*PI)/n2)).multiply(//translate
             RotationAbout((i * 2 * PI) / n2, x, y).multiply(//rotate to maintain rot sym.
               ScalingAbout(pow(a, j), x, y) )
@@ -439,7 +431,7 @@ export const generateLattice = function(spec, nx, ny, d, phi, x, y) {
   for (var i = -floor(nx/2); i <= nx/2; i++) {
     for (var j = -floor(ny/2); j <= ny/2; j++) {
       transset.push(TranslationTransform(((i*vec0[0]) + (j*vec1[0]))*d,
-					 ((i*vec0[1]) + (j*vec1[1]))*d));
+ ((i*vec0[1]) + (j*vec1[1]))*d));
     }
   }
   // Lattice Rotation
@@ -469,14 +461,14 @@ export const generateTiling = function(spec, nx, ny, d, phi, x, y) {
   // Add specified rotational symmetries
   if (spec.rots) {
     _.each(rots, r => rotset.push(RotationAbout(r[0], x + (d * r[1]), y + (d * r[2]))));
-  //	close the group if asked
+  //close the group if asked
     if (spec.closerot && (spec.closerot === true)) { rotset = findclosure(rotset); }
   }
 
   // Add specified reflection symmetries
   if (spec.refs) {
     _.each(refs, r => refset.push(ReflectionAbout(r[0], x + (d * r[1]), y + (d * r[2]))));
-  //	close the group if asked
+  //close the group if asked
     if (spec.closeref && (spec.closeref === true)) { refset = findclosure(refset); }
   }
 
@@ -504,13 +496,7 @@ export const generateTiling = function(spec, nx, ny, d, phi, x, y) {
   // Cartesian product of compositions
   const wholeset = affinesetproduct(transset, Afset);
 
-  // Global rotation: doesn't preserve IdentityTransform,
-  // so in eschersketch pointer doesn't map to itself, too confusing!
-  // have to transform the underlying spec itself to construct a rotated
-  // grid that includes identity
-  // const globalRot = RotationAbout(phi, x, y);
-  const globalRot = IdentityTransform();
-  return transformAffineSet(globalRot, wholeset);
+  return wholeset;
 };
 
 
@@ -698,4 +684,177 @@ export const planarSymmetries = {
     vec1: [ sqrt(3)/2, -1.5 ],
     tile: [ sqrt(3), 3 ]
   }
+};
+
+// Isometry of the Poincare disk as a Mobius transform e^(i phi) (z + b)/(bbar z + 1)
+// where b = x + i y
+// TODO add orientation-reversing transforms
+// --------------------------------------------------------------------------------------------------
+
+class MobiusTransform {
+  constructor(x, y, phi) {
+    this.x = x;
+    this.y = y;
+    this.phi = phi;
+  }
+
+  matrix() {
+    // A = e^(i phi), B = e^(i phi) b, C = bbar, D = 1
+    let A_re = Math.cos(this.phi);
+    let A_im = Math.sin(this.phi);
+    let B_re = A_re * this.x - A_im * this.y;
+    let B_im = A_im * this.x + A_re * this.y;
+    let C_re = this.x;
+    let C_im = -this.y;
+    let D_re = 1;
+    let D_im = 0;
+    return {A_re: A_re, A_im: A_im, B_re: B_re, B_im: B_im,
+            C_re: C_re, C_im: C_im, D_re: D_re, D_im: D_im};
+  }
+
+  // A.multiply(B) = A*B
+  multiply(Min) {
+    const m1 = this.matrix();
+    const m2 = Min.matrix();
+    const m3 = {A_re: m1.A_re * m2.A_re - m1.A_im * m2.A_im + m1.C_re * m2.B_re - m1.C_im * m2.B_im,
+                A_im: m1.A_re * m2.A_im + m1.A_im * m2.A_re + m1.C_re * m2.B_im + m1.C_im * m2.B_re,
+                B_re: m1.B_re * m2.A_re - m1.B_im * m2.A_im + m1.D_re * m2.B_re - m1.D_im * m2.B_im,
+                B_im: m1.B_re * m2.A_im + m1.B_im * m2.A_re + m1.D_re * m2.B_im + m1.D_im * m2.B_re,
+                C_re: m1.A_re * m2.C_re - m1.A_im * m2.C_im + m1.C_re * m2.D_re - m1.C_im * m2.D_im,
+                C_im: m1.A_re * m2.C_im + m1.A_im * m2.C_re + m1.C_re * m2.D_im + m1.C_im * m2.D_re,
+                D_re: m1.B_re * m2.C_re - m1.B_im * m2.C_im + m1.D_re * m2.D_re - m1.D_im * m2.D_im,
+                D_im: m1.B_re * m2.C_im + m1.B_im * m2.C_re + m1.D_re * m2.D_im + m1.D_im * m2.D_re};
+    const Dmag = m3.D_re * m3.D_re + m3.D_im * m3.D_im;
+    const m3_norm = {A_re: (m3.A_re * m3.D_re + m3.A_im * m3.D_im) / Dmag,
+                     A_im: (m3.A_id * m3.D_re - m3.A_re * m3.D_im) / Dmag,
+                     B_re: (m3.B_re * m3.D_re + m3.B_im * m3.D_im) / Dmag,
+                     B_im: (m3.B_id * m3.D_re - m3.B_re * m3.D_im) / Dmag,
+                     C_re: (m3.C_re * m3.D_re + m3.C_im * m3.D_im) / Dmag,
+                     C_im: (m3.C_id * m3.D_re - m3.C_re * m3.D_im) / Dmag};
+    const Mout = new MobiusTransform();
+    Mout.phi = Math.atan2(m3_norm.A_im, m3_norm.A_re);
+    const Amag = m3_norm.A_re * m3_norm.A_re + m3_norm.A_im * m3_norm.A_im;
+    Mout.x = (m3_norm.B_re * m3_norm.A_re + m3_norm.B_im * m3_norm.A_im) / Amag;
+    Mout.y = (m3_norm.B_im * m3_norm.A_re - m3_norm.B_re * m3_norm.A_im) / Amag;
+    return Mout;
+  }
+
+  // A.Lmultiply(B) = B*A
+  Lmultiply(Min) {
+    return Min.multiply(this);
+  }
+
+  inverse() {
+    const det_re = this.A_re * this.D_re - this.A_im * this.D_im - (this.B_re * this.C_re - this.B_im * this.C_im);
+    const det_im = this.A_re * this.D_im + this.A_im * this.D_re + (this.B_re * this.C_im + this.B_im * this.C_re);
+    const det_mag = det_re * det_re + det_im * det_im;
+    const m_inv = {A_re: (this.D_re * det_re + this.D_im * det_im) / det_mag,
+                   A_im: (this.D_im * det_re - this.D_re * det_im) / det_mag,
+                   B_re: -(this.B_re * det_re + this.B_im * det_im) / det_mag,
+                   B_im: -(this.B_im * det_re - this.B_re * det_im) / det_mag,
+                   C_re: -(this.C_re * det_re + this.C_im * det_im) / det_mag,
+                   C_im: -(this.C_im * det_re - this.C_re * det_im) / det_mag,
+                   D_re: (this.A_re * det_re + this.A_im * det_im) / det_mag,
+                   D_im: (this.A_im * det_re - this.A_re * det_im) / det_mag};
+    const Dmag = m_inv.D_re * m_inv.D_re + m_inv.D_im * m_inv.D_im;
+    const m_inv_norm = {A_re: (m_inv.A_re * m_inv.D_re + m_inv.A_im * m_inv.D_im) / Dmag,
+                        A_im: (m_inv.A_im * m_inv.D_re - m_inv.A_re * m_inv.D_im) / Dmag,
+                        B_re: (m_inv.B_re * m_inv.D_re + m_inv.B_im * m_inv.D_im) / Dmag,
+                        B_im: (m_inv.B_im * m_inv.D_re - m_inv.B_re * m_inv.D_im) / Dmag,
+                        C_re: (m_inv.C_re * m_inv.D_re + m_inv.C_im * m_inv.D_im) / Dmag,
+                        C_im: (m_inv.C_im * m_inv.D_re - m_inv.C_re * m_inv.D_im) / Dmag};
+    const Mout = new MobiusTransform();
+    Mout.phi = Math.atan2(m_inv_norm.A_im, m_inv_norm.A_re);
+    const Amag = m_inv_norm.A_re * m_inv_norm.A_re + m_inv_norm.A_im * m_inv_norm.A_im;
+    Mout.x = (m_inv_norm.B_re * m_inv_norm.A_re + m_inv_norm.B_im * m_inv_norm.A_im) / Amag;
+    Mout.y = (m_inv_norm.B_im * m_inv_norm.A_re - m_inv_norm.B_re * m_inv_norm.A_im) / Amag;
+    return Mout;
+  }
+
+  on(x, y) {
+    const num_re = x + this.x;
+    const num_im = y + this.y;
+    const denom_re = this.x * x + this.y * y + 1;
+    const denom_im = this.x * y - this.y * x;
+    const denom_mag = denom_re * denom_re + denom_im * denom_im;
+    const quot_re = (num_re * denom_re + num_im * denom_im) / denom_mag;
+    const quot_im = (num_im * denom_re - num_re * denom_im) / denom_mag;
+    const cosphi = Math.cos(this.phi);
+    const sinphi = Math.sin(this.phi);
+    const out_re = cosphi * quot_re - sinphi * quot_im;
+    const out_im = cosphi * quot_im + sinphi * quot_re;
+    return [ out_re, out_im ];
+  }
+
+  onVec(x) {
+    return this.on(x[0], x[1]);
+  }
+
+  // approximate comparison function
+  sameAs(Min, tol) {
+    tol = tol || 1e-8;
+    let sum = 0;
+    let phidiff = abs(this.phi - Min.phi);
+    while (phidiff > Math.pi) { phidiff -= 2*Math.pi; }
+    sum += phidiff;
+    sum += abs(this.x - Min.x);
+    sum += abs(this.y - Min.y);
+    if (sum < tol) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+}
+
+//Common Hyperbolic Isometries
+//--------------------------------------------------------------------------------------------------
+
+export const HIdentityTransform =
+  () => new MobiusTransform(0, 0, 0);
+
+export const HRotationTransform =
+  angle => new MobiusTransform(angle, 0, 0);
+
+export const HTranslationTransform =
+  (dx, dy) => new MobiusTransform(0, dx, dy);
+
+export const HReflectionTransform =
+  angle => new AffineTransform(Math.cos(2 * angle), Math.sin(2 * angle), Math.sin(2 * angle), -1 * Math.cos(2 * angle), 0, 0);
+
+export const HRotationAbout =
+  (angle, px, py) => TranslationTransform(px, py).multiply(RotationTransform(angle)).multiply(TranslationTransform(-px, -py));
+
+export const HReflectionAbout =
+  (angle, px, py) => TranslationTransform(px, py).multiply(ReflectionTransform(angle)).multiply(TranslationTransform(-px, -py));
+
+export const HGlideTransform =
+  (angle, distance, px, py) => ReflectionAbout(angle, px, py).multiply(TranslationTransform(distance * cos(angle), distance * sin(angle)));
+
+//Master Routine for making hyperbolic symmetry groups
+//--------------------------------------------------------------------------------------------------
+
+export const generateHyperbolic = function(spec, nx, ny, d, phi, x, y) {
+  let rotset = [];
+  let refset = [];
+  let glideset = [];
+  let Afset = [];
+  let transset = [];
+  const { rots } = spec;
+  const { refs } = spec;
+  const { vec0 } = spec;
+  const { vec1 } = spec;
+
+  rotset.push(HIdentityTransform());
+
+  rotset.push(new MobiusTransform(0, 0.1, 0));
+
+  return rotset;
+};
+
+//Wallpaper Symmetry Specification
+//--------------------------------------------------------------------------------------------------
+
+export const hyperbolicSymmetries = {
+  '*237': {}
 };
