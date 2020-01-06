@@ -35,6 +35,9 @@
     <es-button name="p6m" :selected="cursym" @bclick="changeSym"></es-button><br>
 
     <es-button name="*237" :selected="cursym" @bclick="changeSym"></es-button><br>
+    <es-button name="*238" :selected="cursym" @bclick="changeSym"></es-button><br>
+    <es-button name="237" :selected="cursym" @bclick="changeSym"></es-button><br>
+    <es-button name="238" :selected="cursym" @bclick="changeSym"></es-button><br>
 
     <es-button name="grid" :selected="curtool" @bclick="toggleGridTool" hint="toggle symmetry grid adjustment tool">
       grid adjust
