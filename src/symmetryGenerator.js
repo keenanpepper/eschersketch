@@ -273,51 +273,51 @@ const setProduct = function(X, Y, prodfunc) {
 const affinesetproduct =
     (Afset1, Afset2) => setProduct(Afset1, Afset2, (x, y) => x.multiply(y));
 
-const transformAffineSet = function(transformAf, Afset) {
-  // similarity transform A -> U A U^-1
-  const newAfset = [];
-  const invtransformAf = transformAf.inverse();
-  for (let Af of Afset) {
-    newAfset.push(transformAf.multiply(Af).multiply(invtransformAf));
-  }
-  return newAfset;
-};
-
 // generates unique subset of array ar using equivalency function eqfunc
-const uniques = function(ar, eqfunc, discard_func) {
+// if sortkey is supplied, it must satisfy the following:
+// if sortkey(A) and sortkey(B) differ by at least tol, then eqfunc(A,B) must be false 
+const uniques = function(ar, eqfunc, discard_func, sortkey, tol) {
   eqfunc = eqfunc || ((x, y) => x === y);
   discard_func = discard_func || (() => false);
-  let i = 0;
-  const len = ar.length;
-  let sameQ = false;
+  if (sortkey) {
+    ar.sort((a,b) => sortkey(a) - sortkey(b));
+  }
   const newar = [];
-  i = 0;
-  while (i < len) {
-    sameQ = false;
-    for (let j = 0; j < newar.length; ++j) {
-      if (eqfunc(ar[i], newar[j])) {
+  for (let i = 0; i < ar.length; ++i) {
+    if (i == ar.length - 1) {
+      newar.push(ar[i]);
+      break;
+    }
+    let sameQ = false;
+    for (let j = i+1; j < ar.length && (!sortkey || (sortkey(ar[j]) - sortkey(ar[i]) < tol)); ++j) {
+      if (eqfunc(ar[i], ar[j])) {
         sameQ = true;
         break;
       }
     }
     if (!sameQ && !discard_func(ar[i])) { newar.push(ar[i]); }
-    i += 1;
   }
   return newar;
 };
 
 const uniqueaffineset =
-    (Afset, discard_func) => uniques(Afset, (x, y) => x.sameAs(y), discard_func);
+    (Afset, discard_func, sortkey_func, tol) => uniques(Afset, (x, y) => x.sameAs(y, tol), discard_func, sortkey_func, tol);
 
-const findclosure = function(Afset, recursion_limit, discard_func) {
+const findclosure = function(Afset, recursion_limit, discard_func, sortkey_func, tol) {
   let uniqueset;
   recursion_limit = recursion_limit || 3;
   let oldset = Afset;
   let i = 0;
+  const use_mag2 = !!(Afset[0].mag2);
   while (i < recursion_limit) {
-    const setprod = affinesetproduct(Afset, Afset).concat(Afset);
-    uniqueset = uniqueaffineset(setprod, discard_func);
-    if (oldset === uniqueset) { break; }
+    let smallset = Afset.slice();
+    if (use_mag2) {
+      smallset.sort((a,b) => a.mag2() - b.mag2());
+      smallset = smallset.slice(0,40);
+    }
+    const setprod = affinesetproduct(Afset, smallset).concat(Afset);
+    uniqueset = uniqueaffineset(setprod, discard_func, sortkey_func, tol);
+    if (oldset.length === uniqueset.length) { break; }
     Afset = uniqueset;
     oldset = uniqueset;
     i++;
@@ -685,14 +685,14 @@ export const planarSymmetries = {
 
 // Isometry of the Poincare disk as a Mobius transform e^(i phi) (z + b)/(bbar z + 1)
 // where b = x + i y
-// TODO add orientation-reversing transforms
 // --------------------------------------------------------------------------------------------------
 
 class MobiusTransform {
-  constructor(x, y, phi) {
-    this.x = x;
-    this.y = y;
-    this.phi = phi;
+  constructor(x, y, phi, flipfirst) {
+    this.x = x || 0;
+    this.y = y || 0;
+    this.phi = phi || 0;
+    this.flipfirst = flipfirst || false;
   }
 
   matrix() {
@@ -709,9 +709,14 @@ class MobiusTransform {
             C_re: C_re, C_im: C_im, D_re: D_re, D_im: D_im};
   }
 
-  // A.multiply(B) = A*B
+  conjmatrix() {
+    const m = this.matrix();
+    return {A_re: m.A_re, A_im: -m.A_im, B_re: m.B_re, B_im: -m.B_im,
+            C_re: m.C_re, C_im: -m.C_im, D_re: m.D_re, D_im: -m.D_im};
+  }
+
   multiply(Min) {
-    const m1 = this.matrix();
+    const m1 = Min.flipfirst ? this.matrix() : this.conjmatrix();
     const m2 = Min.matrix();
     const m3 = {A_re: m1.A_re * m2.A_re - m1.A_im * m2.A_im + m1.C_re * m2.B_re - m1.C_im * m2.B_im,
                 A_im: m1.A_re * m2.A_im + m1.A_im * m2.A_re + m1.C_re * m2.B_im + m1.C_im * m2.B_re,
@@ -733,42 +738,18 @@ class MobiusTransform {
     const Amag = m3_norm.A_re * m3_norm.A_re + m3_norm.A_im * m3_norm.A_im;
     Mout.x = (m3_norm.B_re * m3_norm.A_re + m3_norm.B_im * m3_norm.A_im) / Amag;
     Mout.y = (m3_norm.B_im * m3_norm.A_re - m3_norm.B_re * m3_norm.A_im) / Amag;
+    Mout.flipfirst = this.flipfirst ? !Min.flipfirst : Min.flipfirst;
     return Mout;
   }
 
-  // A.Lmultiply(B) = B*A
   Lmultiply(Min) {
     return Min.multiply(this);
   }
 
-  inverse() {
-    const det_re = this.A_re * this.D_re - this.A_im * this.D_im - (this.B_re * this.C_re - this.B_im * this.C_im);
-    const det_im = this.A_re * this.D_im + this.A_im * this.D_re + (this.B_re * this.C_im + this.B_im * this.C_re);
-    const det_mag = det_re * det_re + det_im * det_im;
-    const m_inv = {A_re: (this.D_re * det_re + this.D_im * det_im) / det_mag,
-                   A_im: (this.D_im * det_re - this.D_re * det_im) / det_mag,
-                   B_re: -(this.B_re * det_re + this.B_im * det_im) / det_mag,
-                   B_im: -(this.B_im * det_re - this.B_re * det_im) / det_mag,
-                   C_re: -(this.C_re * det_re + this.C_im * det_im) / det_mag,
-                   C_im: -(this.C_im * det_re - this.C_re * det_im) / det_mag,
-                   D_re: (this.A_re * det_re + this.A_im * det_im) / det_mag,
-                   D_im: (this.A_im * det_re - this.A_re * det_im) / det_mag};
-    const Dmag = m_inv.D_re * m_inv.D_re + m_inv.D_im * m_inv.D_im;
-    const m_inv_norm = {A_re: (m_inv.A_re * m_inv.D_re + m_inv.A_im * m_inv.D_im) / Dmag,
-                        A_im: (m_inv.A_im * m_inv.D_re - m_inv.A_re * m_inv.D_im) / Dmag,
-                        B_re: (m_inv.B_re * m_inv.D_re + m_inv.B_im * m_inv.D_im) / Dmag,
-                        B_im: (m_inv.B_im * m_inv.D_re - m_inv.B_re * m_inv.D_im) / Dmag,
-                        C_re: (m_inv.C_re * m_inv.D_re + m_inv.C_im * m_inv.D_im) / Dmag,
-                        C_im: (m_inv.C_im * m_inv.D_re - m_inv.C_re * m_inv.D_im) / Dmag};
-    const Mout = new MobiusTransform();
-    Mout.phi = Math.atan2(m_inv_norm.A_im, m_inv_norm.A_re);
-    const Amag = m_inv_norm.A_re * m_inv_norm.A_re + m_inv_norm.A_im * m_inv_norm.A_im;
-    Mout.x = (m_inv_norm.B_re * m_inv_norm.A_re + m_inv_norm.B_im * m_inv_norm.A_im) / Amag;
-    Mout.y = (m_inv_norm.B_im * m_inv_norm.A_re - m_inv_norm.B_re * m_inv_norm.A_im) / Amag;
-    return Mout;
-  }
-
   on(x, y) {
+    if (this.flipfirst) {
+      y = -y;
+    }
     const num_re = x + this.x;
     const num_im = y + this.y;
     const denom_re = this.x * x + this.y * y + 1;
@@ -789,6 +770,9 @@ class MobiusTransform {
 
   // approximate comparison function
   sameAs(Min, tol) {
+    if (this.flipfirst !== Min.flipfirst) {
+      return false;
+    }
     tol = tol || 1e-8;
     let sum = 0;
     let phidiff = abs(this.phi - Min.phi);
@@ -801,6 +785,10 @@ class MobiusTransform {
     } else {
       return false;
     }
+  }
+
+  mag2() {
+    return this.x*this.x + this.y*this.y;
   }
 }
 
@@ -815,7 +803,6 @@ class PixelMobiusTransform {
     this.yoff = yoff;
   }
 
-  // A.multiply(B) = A*B
   multiply(PMin) {
     const PMout = new PixelMobiusTransform();
     PMout.M = this.M.multiply(PMin.M);
@@ -825,19 +812,9 @@ class PixelMobiusTransform {
     return PMout;
   }
 
-  // A.Lmultiply(B) = B*A
   Lmultiply(Min) {
     const PMout = new PixelMobiusTransform();
     PMout.M = PMin.M.multiply(Min.M);
-    PMout.scale = this.scale;
-    PMout.xoff = this.xoff;
-    PMout.yoff = this.yoff;
-    return PMout;
-  }
-
-  inverse() {
-    const PMout = new PixelMobiusTransform();
-    PMout.M = this.M.inverse();
     PMout.scale = this.scale;
     PMout.xoff = this.xoff;
     PMout.yoff = this.yoff;
@@ -859,6 +836,10 @@ class PixelMobiusTransform {
   sameAs(PMin, tol) {
     tol = tol || 1e-8;
     return this.M.sameAs(PMin.M, tol); // TODO what if scale, xoff, yoff different
+  }
+
+  mag2() {
+    return this.M.mag2();
   }
 }
 
@@ -890,10 +871,9 @@ export const HGlideTransform =
 //--------------------------------------------------------------------------------------------------
 
 export const generateHyperbolic = function(spec, nx, ny, d, phi, x, y) {
-  const basisset = [new PixelMobiusTransform(new MobiusTransform(0, 0, PI*2/7), d, x, y),
-    new PixelMobiusTransform(new MobiusTransform(0, 0, 0), d, x, y),
-    new PixelMobiusTransform(new MobiusTransform(0.496970425395180896221180392445188538017515047404695435924, 0, PI/7), d, x, y)];
-  const myset = findclosure(basisset, 4, (pmt => pmt.M.x * pmt.M.x + pmt.M.y * pmt.M.y > 0.95));
+  const basisset = [new PixelMobiusTransform(new MobiusTransform(0, 0, 0, false), d, x, y)];
+  spec.transforms.forEach(t => basisset.push(new PixelMobiusTransform(new MobiusTransform(t.x, t.y, t.phi, t.flipfirst), d, x, y)));
+  const myset = findclosure(basisset, 10, (pmt => pmt.M.x * pmt.M.x + pmt.M.y * pmt.M.y > 0.98), pmt => pmt.M.x, 1e-8);
   return myset;
 };
 
@@ -901,5 +881,33 @@ export const generateHyperbolic = function(spec, nx, ny, d, phi, x, y) {
 //--------------------------------------------------------------------------------------------------
 
 export const hyperbolicSymmetries = {
-  '*237': {}
+  '*237': {
+    transforms: [
+      {x: 0, y: 0, phi: 2*PI/7, flipfirst: false},
+      {x: 0.49697042539518089622118039244518853801751504740469543592, y: 0, phi: PI/7, flipfirst: false},
+      {x: 0, y: 0, phi: 0, flipfirst: true}
+    ]
+  },
+
+  '*238': {
+    transforms: [
+      {x: 0, y: 0, phi: PI/4, flipfirst: false},
+      {x: 0.64359425290558262473544343741820980892420274244400765115, y: 0, phi: 0, flipfirst: false},
+      {x: 0, y: 0, phi: 0, flipfirst: true}
+    ]
+  },
+
+  '237': {
+    transforms: [
+      {x: 0, y: 0, phi: 2*PI/7, flipfirst: false},
+      {x: 0.49697042539518089622118039244518853801751504740469543592, y: 0, phi: PI/7, flipfirst: false}
+    ]
+  },
+
+  '238': {
+    transforms: [
+      {x: 0, y: 0, phi: PI/4, flipfirst: false},
+      {x: 0.64359425290558262473544343741820980892420274244400765115, y: 0, phi: 0, flipfirst: false}
+    ]
+  },
 };

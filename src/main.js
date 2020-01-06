@@ -106,9 +106,9 @@ export const gS = new Vue({
     // Symmetry State
     //-------------------------------
     // -- each drawing op caches the current value of these params when committed
-    symmState: {sym: '*237',    // symmetry name/key
+    symmState: {sym: '237',    // symmetry name/key
                 x:800, y:400,  // center of constructed grid symmetry
-                d:500, t:0,    // grid-spacing and rotation (rotation not implemented yet)
+                d:480, t:0,    // grid-spacing and rotation (rotation not implemented yet)
                 Nx:18, Ny:14,  // grid Nx, Ny should NOT be too large - too large --> too many draw calls!
                 Nrot: 0, Nref: 3, rot: 0 // Rosette parameters
               },
