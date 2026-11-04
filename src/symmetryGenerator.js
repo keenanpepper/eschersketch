@@ -241,6 +241,11 @@ class AffineTransform {
 export const IdentityTransform =
     () => new AffineTransform(1, 0, 0, 1, 0, 0);
 
+export const ScalingTransform = function(scale, scaley) {
+  scaley = scaley || scale;
+  return new AffineTransform(scale, 0, 0, scaley, 0, 0);
+};
+
 export const RotationTransform =
     angle => new AffineTransform(Math.cos(angle), Math.sin(angle), -1 * Math.sin(angle), Math.cos(angle), 0, 0);
 
@@ -249,6 +254,9 @@ export const TranslationTransform =
 
 export const ReflectionTransform =
     angle => new AffineTransform(Math.cos(2 * angle), Math.sin(2 * angle), Math.sin(2 * angle), -1 * Math.cos(2 * angle), 0, 0);
+
+export const ScalingAbout =
+    (scale, px, py) => TranslationTransform(px, py).multiply(ScalingTransform(scale)).multiply(TranslationTransform(-px, -py));
 
 export const RotationAbout =
     (angle, px, py) => TranslationTransform(px, py).multiply(RotationTransform(angle)).multiply(TranslationTransform(-px, -py));
