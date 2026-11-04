@@ -918,20 +918,27 @@ const enumerateGroup = function(gens, maxR2) {
   return Array.from(seen.values()); // identity first
 };
 
-// Copies drawn at |b|^2 = maxR2 are scaled by 1 - |b|^2 relative to the original.
-const HYPERBOLIC_MAX_R2 = 0.98;
+// A transform that moves the origin to b scales a small shape at the origin by 1 - |b|^2, so with
+// disk radius d, a shape of size d (in pixels) ends up (1 - |b|^2) * d pixels across. Copies
+// smaller than this are skipped. Each ring of tiles closer to the horizon shrinks copies about
+// 3x (237) or 4.6x (238) and multiplies the copy count, and so the drawing cost, by the same
+// factor. At d = 480, 2px keeps one more ring than the old fixed |b|^2 <= 0.98 cutoff (~10px).
+const HYPERBOLIC_MIN_COPY_PX = 2;
 
-// The group depends only on the spec, so it is computed once per spec in unit-disk coordinates.
+// The group depends only on the spec and cutoff, so it is computed once per pair in unit-disk
+// coordinates.
 const hyperbolicGroup = _.memoize(
-  spec => enumerateGroup(triangleGroupGenerators(spec.p, spec.q, spec.r, spec.mirror), HYPERBOLIC_MAX_R2),
-  spec => JSON.stringify(spec));
+  (spec, maxR2) => enumerateGroup(triangleGroupGenerators(spec.p, spec.q, spec.r, spec.mirror), maxR2),
+  (spec, maxR2) => JSON.stringify([spec, maxR2]));
 
 //Master Routine for making hyperbolic symmetry groups
 //--------------------------------------------------------------------------------------------------
 // d is the disk radius in pixels and (x, y) its center; nx, ny and phi are unused.
 
-export const generateHyperbolic = (spec, nx, ny, d, phi, x, y) =>
-  hyperbolicGroup(spec).map(M => new PixelMobiusTransform(M, d, x, y));
+export const generateHyperbolic = function(spec, nx, ny, d, phi, x, y) {
+  const maxR2 = max(0, 1 - HYPERBOLIC_MIN_COPY_PX / d);
+  return hyperbolicGroup(spec, maxR2).map(M => new PixelMobiusTransform(M, d, x, y));
+};
 
 //Hyperbolic Symmetry Specification
 //--------------------------------------------------------------------------------------------------
