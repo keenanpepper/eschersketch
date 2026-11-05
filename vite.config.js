@@ -82,6 +82,9 @@ function staticAssetsPlugin() {
 }
 
 export default defineConfig({
+  // relative asset paths, so the build works at any URL path (e.g. a GitHub Pages project site
+  // at /eschersketch/) and not only at the domain root
+  base: './',
   plugins: [
     vue(),
     markdownPlugin(),

@@ -9,7 +9,7 @@
       <div id="logocontainer">
         <div class="spacer"/>
         <h2>escher</h2><div class="spacer"/>
-        <img src="/static/svg/eslogo2.svg" height="50px">
+        <img src="../../static/svg/eslogo2.svg" height="50px">
         <div class="spacer"/>
         <h2>sketch</h2>
         <div class="spacer"/>
