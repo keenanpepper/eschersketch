@@ -47,6 +47,13 @@
     <es-numfield param="r" :val="symmState.r" size="2" @numchange="updateTriple"></es-numfield>
     <br>
     <span v-if="tripleError" class="tripleError">{{tripleError}}<br></span>
+    <template v-if="triple">
+      center
+      <es-button v-for="(n, i) in [triple.p, triple.q, triple.r]" :key="i" :name="String(i)"
+                 :selected="String(symmState.center || 0)" @bclick="changeCenter"
+                 :hint="'put an order-' + n + ' vertex of the triangle at the center of the disk'">{{n}}</es-button>
+      <br>
+    </template>
 
     <es-button name="grid" :selected="curtool" @bclick="toggleGridTool" hint="toggle symmetry grid adjustment tool">
       grid adjust
@@ -78,7 +85,7 @@
 import es_numfield from './es_numfield';
 import es_button from './es_button';
 import {gS} from '../main.js';
-import {planarSymmetries, hyperbolicSpec, triangleGroupError} from '../symmetryGenerator';
+import {planarSymmetries, hyperbolicSpec, hyperbolicTriple, triangleGroupError} from '../symmetryGenerator';
 
 import _ from 'underscore';
 
@@ -91,6 +98,7 @@ export default {
   data: function(){ return {tripleError: ""}; },
   computed: {
     cursym: function(){ return this.symmState.sym; },
+    triple: function(){ return hyperbolicTriple(this.symmState); },
     curtool: function(){ return this.params.curTool; },
     showPointParams: function(){
       return {visibility: this.symmState.sym == "rosette" ? "visible" : "hidden"};
@@ -134,6 +142,7 @@ export default {
       const sym = (cur && !cur.mirror) ? 'pqr' : '*pqr';
       gS.$emit('symmUpdate', _.assign({sym: sym}, triple));
     },
+    changeCenter: function(i){ gS.$emit('symmUpdate', {center: Number(i)}); },
     halveD: function(){ this.update("d", this.symmState.d/2.0); },
     doubleD: function(){ this.update("d", this.symmState.d*2.0); },
   },

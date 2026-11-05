@@ -102,6 +102,7 @@ export const gS = new Vue({
                 d:100, t:0,    // grid-spacing and rotation (rotation not implemented yet)
                 R:480,         // hyperbolic disk radius in px, fitted to the window by initState
                 p:5, q:4, r:2, // triangle of the custom hyperbolic groups *pqr and pqr
+                center:0,      // which hyperbolic triangle vertex (0, 1, 2 for p, q, r) is at the disk center
                 Nx:18, Ny:14,  // grid Nx, Ny should NOT be too large - too large --> too many draw calls!
                 Nrot: 0, Nref: 3, rot: 0 // Rosette parameters
               },

@@ -993,12 +993,25 @@ export const triangleGroupError = function(p, q, r) {
   return null;
 };
 
-// The {p, q, r, mirror} spec of a symmetry state's hyperbolic group, or null if it isn't one.
-export const hyperbolicSpec = function(symmState) {
+// The group of a symmetry state as named, {p, q, r, mirror} in the order the preset or the user gave,
+// or null if it isn't hyperbolic.
+export const hyperbolicTriple = function(symmState) {
   const sym = symmState.sym;
   if (_.has(hyperbolicSymmetries, sym)) { return hyperbolicSymmetries[sym]; }
   if (customHyperbolicSyms.includes(sym)) {
     return {p: symmState.p, q: symmState.q, r: symmState.r, mirror: sym === '*pqr'};
   }
   return null;
+};
+
+// The spec to generate, which puts vertex symmState.center (0, 1, 2 for p, q, r; default 0) of
+// the triple at the center of the disk. The first of the other two, in triple order, goes on the
+// horizontal axis, so a triangle side (a mirror line, for *pqr) stays horizontal.
+export const hyperbolicSpec = function(symmState) {
+  const t = hyperbolicTriple(symmState);
+  if (!t) { return null; }
+  const orders = [t.p, t.q, t.r];
+  const c = symmState.center || 0;
+  const [q, r] = orders.filter((_o, i) => i !== c);
+  return {p: orders[c], q: q, r: r, mirror: t.mirror};
 };
