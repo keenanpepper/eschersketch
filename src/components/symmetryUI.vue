@@ -38,6 +38,15 @@
     <es-button name="*238" :selected="cursym" @bclick="changeSym"></es-button><br>
     <es-button name="237" :selected="cursym" @bclick="changeSym"></es-button><br>
     <es-button name="238" :selected="cursym" @bclick="changeSym"></es-button><br>
+    <es-button name="*pqr" :selected="cursym" @bclick="changeSym"
+               hint="hyperbolic group *pqr with mirrors, for the p, q, r typed here">*<i>pqr</i></es-button>
+    <es-button name="pqr" :selected="cursym" @bclick="changeSym"
+               hint="hyperbolic group pqr, rotations only"><i>pqr</i></es-button>
+    <es-numfield param="p" :val="symmState.p" size="2" @numchange="updateTriple"></es-numfield>
+    <es-numfield param="q" :val="symmState.q" size="2" @numchange="updateTriple"></es-numfield>
+    <es-numfield param="r" :val="symmState.r" size="2" @numchange="updateTriple"></es-numfield>
+    <br>
+    <span v-if="tripleError" class="tripleError">{{tripleError}}<br></span>
 
     <es-button name="grid" :selected="curtool" @bclick="toggleGridTool" hint="toggle symmetry grid adjustment tool">
       grid adjust
@@ -69,7 +78,7 @@
 import es_numfield from './es_numfield';
 import es_button from './es_button';
 import {gS} from '../main.js';
-import {planarSymmetries} from '../symmetryGenerator';
+import {planarSymmetries, hyperbolicSpec, triangleGroupError} from '../symmetryGenerator';
 
 import _ from 'underscore';
 
@@ -79,6 +88,7 @@ export default {
     'es-button': es_button,
     'es-numfield': es_numfield
   },
+  data: function(){ return {tripleError: ""}; },
   computed: {
     cursym: function(){ return this.symmState.sym; },
     curtool: function(){ return this.params.curTool; },
@@ -108,10 +118,30 @@ export default {
       gridcopy[name] = Number(val);
       gS.$emit('symmUpdate', gridcopy);
     },
+    // Typing p, q or r switches to the custom group, keeping mirrors unless the current group is
+    // a rotation-only hyperbolic one. An invalid triple is rejected and the field restored.
+    updateTriple: function(name, val){
+      const triple = _.pick(gS.symmState, 'p', 'q', 'r');
+      triple[name] = Number(val);
+      const err = triangleGroupError(triple.p, triple.q, triple.r);
+      if(err){
+        this.tripleError = err;
+        this.$el.querySelector(`input[name="${name}"]`).value = gS.symmState[name];
+        return;
+      }
+      this.tripleError = "";
+      const cur = hyperbolicSpec(gS.symmState);
+      const sym = (cur && !cur.mirror) ? 'pqr' : '*pqr';
+      gS.$emit('symmUpdate', _.assign({sym: sym}, triple));
+    },
     halveD: function(){ this.update("d", this.symmState.d/2.0); },
     doubleD: function(){ this.update("d", this.symmState.d*2.0); },
   },
 }
 </script>
 <style scoped>
+.tripleError {
+  color: #b33;
+  font-size: 85%;
+}
 </style>

@@ -29,7 +29,7 @@ import './libs/canvas2svg.js';
 import {deepClone, lsGetJSON, lsSaveJSON, lsDelJSON} from './utils';
 import {pixelFix, setCanvasPixelDensity, parseColor} from './canvas_utils';
 import {generateTiling, planarSymmetries, RosetteGroup, IdentitySet,
-  generateHyperbolic, hyperbolicSymmetries} from './symmetryGenerator';
+  generateHyperbolic, hyperbolicSpec} from './symmetryGenerator';
 import {networkConfig} from './config';
 
 // Import all the Drawing Tools
@@ -101,6 +101,7 @@ export const gS = new Vue({
                 x:800, y:400,  // center of constructed grid symmetry
                 d:100, t:0,    // grid-spacing and rotation (rotation not implemented yet)
                 R:480,         // hyperbolic disk radius in px, fitted to the window by initState
+                p:5, q:4, r:2, // triangle of the custom hyperbolic groups *pqr and pqr
                 Nx:18, Ny:14,  // grid Nx, Ny should NOT be too large - too large --> too many draw calls!
                 Nrot: 0, Nref: 3, rot: 0 // Rosette parameters
               },
@@ -309,8 +310,8 @@ export const symmetrySet = function(symmState) {
   else if(Object.keys(planarSymmetries).includes(s.sym)) {
     return memo_generateTiling(planarSymmetries[s.sym], s.Nx, s.Ny, s.d, s.t, s.x, s.y);
   }
-  else if(Object.keys(hyperbolicSymmetries).includes(s.sym)) {
-    return memo_generateHyperbolic(hyperbolicSymmetries[s.sym], s.Nx, s.Ny, diskRadius(s), s.t, s.x, s.y);
+  else if(hyperbolicSpec(s)) {
+    return memo_generateHyperbolic(hyperbolicSpec(s), s.Nx, s.Ny, diskRadius(s), s.t, s.x, s.y);
   }
   else {
     return RosetteGroup(s.Nrot, s.Nref, s.x, s.y, s.rot/180.0*Math.PI);
@@ -495,7 +496,7 @@ const restoreOp = function(deadOp){
     let op = new opsTable[deadOp.tool];
     _.assign(op, deadOp);
     // hyperbolic ops saved before R existed used d as the disk radius
-    if(op.symmState && Object.keys(hyperbolicSymmetries).includes(op.symmState.sym) &&
+    if(op.symmState && hyperbolicSpec(op.symmState) &&
        op.symmState.R === undefined){
       op.symmState = _.assign({}, op.symmState, {R: op.symmState.d});
     }

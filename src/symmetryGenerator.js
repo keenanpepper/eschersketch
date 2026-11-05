@@ -889,8 +889,11 @@ class PixelMobiusTransform {
 // origin and the rotation by 2PI/q about the order-q vertex. The full group ("*pqr") adds the
 // reflection across the real axis.
 
+// 1/p + 1/q + 1/r < 1, tested exactly: in floating point 1/2 + 1/3 + 1/6 comes out just below 1
+const isHyperbolicTriangle = (p, q, r) => q * r + p * r + p * q < p * q * r;
+
 const triangleGroupGenerators = function(p, q, r, mirror) {
-  if (1/p + 1/q + 1/r >= 1) {
+  if (!isHyperbolicTriangle(p, q, r)) {
     throw new Error(`(${p},${q},${r}) is not a hyperbolic triangle: need 1/p + 1/q + 1/r < 1`);
   }
   const [a, b, c] = [PI / p, PI / q, PI / r];
@@ -969,4 +972,33 @@ export const hyperbolicSymmetries = {
   '*238': {p: 8, q: 2, r: 3, mirror: true},
   '237':  {p: 7, q: 3, r: 2, mirror: false},
   '238':  {p: 8, q: 2, r: 3, mirror: false},
+};
+
+// Custom triangle groups: sym '*pqr' (with mirrors) or 'pqr' (rotations only), with the triple in
+// the symmetry state's p, q, r. The order matters only for placement: the order-p vertex is at the
+// center of the disk and the order-q vertex on the horizontal axis through it.
+export const customHyperbolicSyms = ['*pqr', 'pqr'];
+
+// Largest allowed p, q or r. Rotations by 2PI/n must stay far apart at mobiusKey's 1e-6 rounding.
+const MAX_TRIANGLE_ORDER = 1000;
+
+// Why (p, q, r) can't be used, or null if it gives a hyperbolic triangle group.
+export const triangleGroupError = function(p, q, r) {
+  if (![p, q, r].every(n => Number.isInteger(n) && n >= 2 && n <= MAX_TRIANGLE_ORDER)) {
+    return `p, q, r must be whole numbers from 2 to ${MAX_TRIANGLE_ORDER}`;
+  }
+  if (!isHyperbolicTriangle(p, q, r)) {
+    return `1/${p} + 1/${q} + 1/${r} \u2265 1, so (${p},${q},${r}) isn't hyperbolic`;
+  }
+  return null;
+};
+
+// The {p, q, r, mirror} spec of a symmetry state's hyperbolic group, or null if it isn't one.
+export const hyperbolicSpec = function(symmState) {
+  const sym = symmState.sym;
+  if (_.has(hyperbolicSymmetries, sym)) { return hyperbolicSymmetries[sym]; }
+  if (customHyperbolicSyms.includes(sym)) {
+    return {p: symmState.p, q: symmState.q, r: symmState.r, mirror: sym === '*pqr'};
+  }
+  return null;
 };
