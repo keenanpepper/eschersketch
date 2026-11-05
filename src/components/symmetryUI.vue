@@ -34,9 +34,9 @@
     <es-button name="p3m1" :selected="cursym" @bclick="changeSym"></es-button>
     <es-button name="p6m" :selected="cursym" @bclick="changeSym"></es-button><br>
 
-    <es-button name="*237" :selected="cursym" @bclick="changeSym"></es-button><br>
-    <es-button name="*238" :selected="cursym" @bclick="changeSym"></es-button><br>
-    <es-button name="237" :selected="cursym" @bclick="changeSym"></es-button><br>
+    <es-button name="*237" :selected="cursym" @bclick="changeSym"></es-button>
+    <es-button name="*238" :selected="cursym" @bclick="changeSym"></es-button>
+    <es-button name="237" :selected="cursym" @bclick="changeSym"></es-button>
     <es-button name="238" :selected="cursym" @bclick="changeSym"></es-button><br>
     <es-button name="*pqr" :selected="cursym" @bclick="changeSym"
                hint="hyperbolic group *pqr with mirrors, for the p, q, r typed here">*<i>pqr</i></es-button>
@@ -49,7 +49,7 @@
     <span v-if="tripleError" class="tripleError">{{tripleError}}<br></span>
     <template v-if="triple">
       center
-      <es-button v-for="(n, i) in [triple.p, triple.q, triple.r]" :key="i" :name="String(i)"
+      <es-button v-for="{n, i} in centerButtons" :key="i" :name="String(i)"
                  :selected="String(symmState.center || 0)" @bclick="changeCenter"
                  :hint="'put an order-' + n + ' vertex of the triangle at the center of the disk'">{{n}}</es-button>
       <br>
@@ -85,7 +85,8 @@
 import es_numfield from './es_numfield';
 import es_button from './es_button';
 import {gS} from '../main.js';
-import {planarSymmetries, hyperbolicSpec, hyperbolicTriple, triangleGroupError} from '../symmetryGenerator';
+import {planarSymmetries, hyperbolicSpec, hyperbolicTriple, customHyperbolicSyms,
+  triangleGroupError} from '../symmetryGenerator';
 
 import _ from 'underscore';
 
@@ -99,6 +100,13 @@ export default {
   computed: {
     cursym: function(){ return this.symmState.sym; },
     triple: function(){ return hyperbolicTriple(this.symmState); },
+    // the triangle's vertex orders, with their indices (0, 1, 2 for p, q, r); ascending for the
+    // presets, to match their names, and as typed for the custom groups
+    centerButtons: function(){
+      const t = this.triple;
+      const buttons = [t.p, t.q, t.r].map((n, i) => ({n: n, i: i}));
+      return customHyperbolicSyms.includes(this.symmState.sym) ? buttons : _.sortBy(buttons, 'n');
+    },
     curtool: function(){ return this.params.curTool; },
     showPointParams: function(){
       return {visibility: this.symmState.sym == "rosette" ? "visible" : "hidden"};
