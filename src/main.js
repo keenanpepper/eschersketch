@@ -99,7 +99,8 @@ export const gS = new Vue({
     // -- each drawing op caches the current value of these params when committed
     symmState: {sym: '237',    // symmetry name/key
                 x:800, y:400,  // center of constructed grid symmetry
-                d:480, t:0,    // grid-spacing and rotation (rotation not implemented yet)
+                d:100, t:0,    // grid-spacing and rotation (rotation not implemented yet)
+                R:480,         // hyperbolic disk radius in px, fitted to the window by initState
                 Nx:18, Ny:14,  // grid Nx, Ny should NOT be too large - too large --> too many draw calls!
                 Nrot: 0, Nref: 3, rot: 0 // Rosette parameters
               },
@@ -286,6 +287,9 @@ const memo_generateTiling = _.memoize(generateTiling,
 const memo_generateHyperbolic = _.memoize(generateHyperbolic,
                                 function(){return JSON.stringify(arguments);});
 
+// Hyperbolic disk radius of a symmetry state. Ops saved before R existed used the grid spacing d.
+const diskRadius = s => (s.R !== undefined ? s.R : s.d);
+
 // The transforms for a symmetry state. Doesn't touch global state, so committed ops can render
 // with their own symmetry. With dynamicGridSize, the planar grid size follows the canvas size
 // rather than the state's Nx, Ny.
@@ -306,7 +310,7 @@ export const symmetrySet = function(symmState) {
     return memo_generateTiling(planarSymmetries[s.sym], s.Nx, s.Ny, s.d, s.t, s.x, s.y);
   }
   else if(Object.keys(hyperbolicSymmetries).includes(s.sym)) {
-    return memo_generateHyperbolic(hyperbolicSymmetries[s.sym], s.Nx, s.Ny, s.d, s.t, s.x, s.y);
+    return memo_generateHyperbolic(hyperbolicSymmetries[s.sym], s.Nx, s.Ny, diskRadius(s), s.t, s.x, s.y);
   }
   else {
     return RosetteGroup(s.Nrot, s.Nref, s.x, s.y, s.rot/180.0*Math.PI);
@@ -489,7 +493,13 @@ const serialize = function(){
 
 const restoreOp = function(deadOp){
     let op = new opsTable[deadOp.tool];
-    return _.assign(op, deadOp)
+    _.assign(op, deadOp);
+    // hyperbolic ops saved before R existed used d as the disk radius
+    if(op.symmState && Object.keys(hyperbolicSymmetries).includes(op.symmState.sym) &&
+       op.symmState.R === undefined){
+      op.symmState = _.assign({}, op.symmState, {R: op.symmState.d});
+    }
+    return op;
 }
 
 export const deserialize = function(jsonStr){
@@ -769,6 +779,9 @@ var onResize = function() { // also for onOrientationChange !
 
 
 
+// gap between the hyperbolic disk and the nearer pair of window edges
+const DISK_MARGIN_PX = 10;
+
 // set up initial context and symmetry
 const initState = function() {
   _.assign(lctx, gS.ctxStyle);
@@ -780,6 +793,9 @@ const initState = function() {
   let h = window.innerHeight;
   gS.symmState.x = Math.round(w/2);
   gS.symmState.y = Math.round(h/2);
+  // fit the hyperbolic disk to the window; resizing later deliberately leaves it alone, so it
+  // keeps matching what's already drawn
+  gS.symmState.R = Math.max(50, Math.floor(Math.min(w, h)/2) - DISK_MARGIN_PX);
   gS.symmState.Nx = Math.round((w / gS.symmState.d)*2);
   gS.symmState.Ny = Math.round((h / gS.symmState.d)*2);
   //console.log("grid Nx,Ny ",gS.symmState.Nx, gS.symmState.Ny);
