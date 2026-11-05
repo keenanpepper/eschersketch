@@ -819,6 +819,26 @@ class PixelMobiusTransform {
     this.yoff = yoff;
   }
 
+  // lines map to circular arcs, so tools must not just map their control points (see mappedPath.js)
+  get preservesLines() {
+    return false;
+  }
+
+  // Whether the image of a straight segment, whose mapped endpoints are Ta and Tb (in pixels),
+  // stays within tolPx of the chord Ta-Tb, judged from the chord alone. For a disk isometry,
+  // |f'(z)| = (1 - |f(z)|^2) / (1 - |z|^2), which bounds the curvature of the image of a straight
+  // line near the image point w by 4 / (d (1 - |w|^2)) in pixels, where d is the disk radius; the
+  // sagitta of a chord of length l is then about l^2 / (2 d (1 - |w|^2)). Using the endpoint
+  // closer to the horizon and requiring half that sagitta to stay under tolPx is conservative for
+  // short chords. Returns false when unsure; the caller then checks the actual midpoint.
+  imageIsStraight(Ta, Tb, tolPx) {
+    const dx = Tb[0] - Ta[0], dy = Tb[1] - Ta[1];
+    const ax = (Ta[0] - this.xoff) / this.scale, ay = (Ta[1] - this.yoff) / this.scale;
+    const bx = (Tb[0] - this.xoff) / this.scale, by = (Tb[1] - this.yoff) / this.scale;
+    const room = 1 - Math.max(ax * ax + ay * ay, bx * bx + by * by); // 1 - |w|^2
+    return room > 0 && dx * dx + dy * dy < tolPx * this.scale * room;
+  }
+
   multiply(PMin) {
     const PMout = new PixelMobiusTransform();
     PMout.M = this.M.multiply(PMin.M);

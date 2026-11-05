@@ -19,6 +19,7 @@ import _ from 'underscore';
 import {l2dist} from './math_utils';
 
 import {drawHitCircle} from './canvas_utils';
+import {mappedPath} from './mappedPath';
 
 // Draw Single Line Segments
 //------------------------------------------------------------------------------
@@ -35,11 +36,10 @@ export class LineOp {
     updateSymmetry(this.symmState);
     //gS.$emit('symmUpdate', this.symmState);
     for (let af of affineset) {
-      const Tp1 = af.on(this.points[0][0], this.points[0][1]);
-      const Tp2 = af.on(this.points[1][0], this.points[1][1]);
+      const path = mappedPath(ctx, af);
       ctx.beginPath();
-      ctx.moveTo(Tp1[0], Tp1[1]);
-      ctx.lineTo(Tp2[0], Tp2[1]);
+      path.moveTo(this.points[0]);
+      path.lineTo(this.points[1]);
       ctx.stroke();
     }
   }
@@ -66,11 +66,10 @@ export class LineTool {
   liverender() {
     lctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let af of affineset) {
-      const Tp1 = af.on(this.points[0][0], this.points[0][1]);
-      const Tp2 = af.on(this.points[1][0], this.points[1][1]);
+      const path = mappedPath(lctx, af);
       lctx.beginPath();
-      lctx.moveTo(Tp1[0], Tp1[1]);
-      lctx.lineTo(Tp2[0], Tp2[1]);
+      path.moveTo(this.points[0]);
+      path.lineTo(this.points[1]);
       lctx.stroke();
     }
     drawHitCircle(lctx, this.points[0][0]-0.5, this.points[0][1]-0.5, this.hitRadius);

@@ -22,6 +22,7 @@ import {add2, sub2, scalar2, normalize, l2norm, l2dist,
 import {RotationAbout, RotationTransform, ScalingTransform} from './symmetryGenerator';
 
 import {drawHitCircle} from './canvas_utils';
+import {mappedPath} from './mappedPath';
 
 
 // Draw Circles, Ellipses, Arc-segments
@@ -41,14 +42,8 @@ export class CircleOp {
     const drawOrder = drawKeyToOrderMap[this.ctxStyle.drawOrder]; // optional separation of stroke / fill layers
     for(let drawSet of drawOrder){
       for (let af of affineset) {
-        const Tp0 = af.on(this.points[0][0], this.points[0][1]);
-        const Tp1 = af.on(this.points[1][0], this.points[1][1]);
-        const Tp2 = af.on(this.points[2][0], this.points[2][1]);
-        let Tmajor = l2dist(Tp0,Tp1);
-        let Tminor = l2dist(Tp0,Tp2);
-        let angle = pointToAngle(Tp0,Tp1);
         ctx.beginPath();
-        ctx.ellipse(Tp0[0], Tp0[1], Tmajor, Tminor, angle, 0, Math.PI/180.0 * this.options.arcAngle,0);
+        mappedPath(ctx, af).ellipse(this.points[0], this.points[1], this.points[2], Math.PI/180.0 * this.options.arcAngle);
         for(let drawFunc of drawSet){ //drawFunc = "stroke" or "fill"
           ctx[drawFunc]();
         }
@@ -94,14 +89,8 @@ export class CircleTool {
     const drawOrder = drawKeyToOrderMap[gS.ctxStyle.drawOrder]; // optional separation of stroke / fill layers
     for(let drawSet of drawOrder){
       for (let af of affineset) {
-        const Tp0 = af.on(this.points[0][0], this.points[0][1]);
-        const Tp1 = af.on(this.points[1][0], this.points[1][1]);
-        const Tp2 = af.on(this.points[2][0], this.points[2][1]);
-        let Tmajor = l2dist(Tp0,Tp1);
-        let Tminor = l2dist(Tp0,Tp2);
-        let angle = pointToAngle(Tp0,Tp1);
         lctx.beginPath();
-        lctx.ellipse(Tp0[0], Tp0[1], Tmajor, Tminor, angle, 0, Math.PI/180.0*this.options.arcAngle.val,0);
+        mappedPath(lctx, af).ellipse(this.points[0], this.points[1], this.points[2], Math.PI/180.0*this.options.arcAngle.val);
         for(let drawFunc of drawSet){ //drawFunc = "stroke" or "fill"
           lctx[drawFunc]();
         }

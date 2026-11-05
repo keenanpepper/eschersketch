@@ -20,34 +20,39 @@ import {deepClone} from './utils';
 import {sign, add2, sub2, scalar2, normalize, l2norm, l2dist, reflectPoint, angleBetween} from './math_utils';
 
 import {drawHitCircle} from './canvas_utils';
+import {mappedPath} from './mappedPath';
 
 import {RotationAbout, RotationTransform, ScalingTransform} from './symmetryGenerator';
+// The shapes are built in drawing coordinates and drawn through the symmetry transform af
+// (see mappedPath.js), since a Mobius transform doesn't map the center to the image's center.
+
 //draws regular Ngon with center at pt0, a vertex at pt1
-const drawPolygon = function(ctx, pt0, pt1, Nedges){
+const drawPolygon = function(ctx, af, pt0, pt1, Nedges){
   ctx.beginPath();
-  ctx.moveTo(pt1[0], pt1[1]);
+  const path = mappedPath(ctx, af);
   let rotTr = RotationAbout(2*Math.PI/Nedges, pt0[0],pt0[1]);
-  let Tpt = pt1;
-  ctx.moveTo(Tpt[0], Tpt[1]);
+  let pt = pt1;
+  path.moveTo(pt);
   for(let i=0; i<Nedges; i++){
-    Tpt = rotTr.onVec(Tpt);
-    ctx.lineTo(Tpt[0], Tpt[1]);
+    pt = rotTr.onVec(pt);
+    path.lineTo(pt);
   }
 }
 //draws 2N-vertex star figure with center at pt0, first "outer" vertex at pt1, first "inner" vertex at pt2
-const drawStar = function(ctx, pt0, pt1, pt2, Nrots){
+const drawStar = function(ctx, af, pt0, pt1, pt2, Nrots){
   ctx.beginPath();
-  ctx.moveTo(pt1[0], pt1[1]);
+  const path = mappedPath(ctx, af);
+  path.moveTo(pt1);
   // must preserve proper draw order orientation on reflections!
   let anglesign = sign(angleBetween(pt0,pt1,pt2));
   let rotTr = RotationAbout(anglesign*2*Math.PI/Nrots, pt0[0], pt0[1]);
-  let Tpt1 = pt1;
-  let Tpt2 = pt2;
+  let rpt1 = pt1;
+  let rpt2 = pt2;
   for(let i=0; i<Nrots; i++){
-    Tpt1 = rotTr.onVec(Tpt1);
-    Tpt2 = rotTr.onVec(Tpt2);
-    ctx.lineTo(Tpt2[0], Tpt2[1]);
-    ctx.lineTo(Tpt1[0], Tpt1[1]);
+    rpt1 = rotTr.onVec(rpt1);
+    rpt2 = rotTr.onVec(rpt2);
+    path.lineTo(rpt2);
+    path.lineTo(rpt1);
   }
 }
 
@@ -68,14 +73,11 @@ export class PolygonOp {
     const drawOrder = drawKeyToOrderMap[this.ctxStyle.drawOrder]; // optional separation of stroke / fill layers
     for(let drawSet of drawOrder){
       for (let af of affineset) {
-        const Tp0 = af.onVec(this.points[0]);
-        const Tp1 = af.onVec(this.points[1]);
-        const Tp2 = af.onVec(this.points[2]);
         if(this.options.star){
-          drawStar(ctx, Tp0, Tp1, Tp2, this.options.edges);
+          drawStar(ctx, af, this.points[0], this.points[1], this.points[2], this.options.edges);
         }
         else {
-          drawPolygon(ctx, Tp0, Tp1, this.options.edges);
+          drawPolygon(ctx, af, this.points[0], this.points[1], this.options.edges);
         }
         for(let drawFunc of drawSet){ //drawFunc = "stroke" or "fill"
           ctx[drawFunc]();
@@ -122,13 +124,10 @@ export class PolygonTool {
     const drawOrder = drawKeyToOrderMap[gS.ctxStyle.drawOrder]; // optional separation of stroke / fill layers
     for(let drawSet of drawOrder) {
       for (let af of affineset) {
-        const Tp0 = af.onVec(this.points[0]);
-        const Tp1 = af.onVec(this.points[1]);
-        const Tp2 = af.onVec(this.points[2]);
         if(this.options.star.val){
-          drawStar(lctx, Tp0, Tp1, Tp2, this.options.edges.val);
+          drawStar(lctx, af, this.points[0], this.points[1], this.points[2], this.options.edges.val);
         } else {
-          drawPolygon(lctx, Tp0, Tp1, this.options.edges.val);
+          drawPolygon(lctx, af, this.points[0], this.points[1], this.options.edges.val);
         }
         for(let drawFunc of drawSet){ //drawFunc = "stroke" or "fill"
           lctx[drawFunc]();

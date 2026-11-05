@@ -20,6 +20,7 @@ import {l2dist, EPS} from './math_utils';
 import _ from 'underscore';
 
 import {drawHitCircle} from './canvas_utils';
+import {mappedPath} from './mappedPath';
 
 // Polygon Drawing
 //------------------------------------------------------------------------------
@@ -37,15 +38,14 @@ export class PolyOp {
     const drawOrder = drawKeyToOrderMap[this.ctxStyle.drawOrder]; // optional separation of stroke / fill layers
     for(let drawSet of drawOrder){
       for (let af of affineset) {
+        const path = mappedPath(ctx, af);
         ctx.beginPath();
-        let Tpt = af.on(this.points[0][0], this.points[0][1]);
-        ctx.moveTo(Tpt[0], Tpt[1]);
+        path.moveTo(this.points[0]);
         for(let pt of this.points.slice(1)) {
-          Tpt = af.on(pt[0], pt[1]);
-          ctx.lineTo(Tpt[0], Tpt[1]);
+          path.lineTo(pt);
         }
         if(l2dist(this.points[0],this.points[this.points.length-1])<EPS) {
-          ctx.closePath(); //necessary?
+          path.closePath(); //necessary?
         }
         for(let drawFunc of drawSet){ //drawFunc = "stroke" or "fill"
           ctx[drawFunc]();
@@ -81,12 +81,11 @@ export class PolyTool {
     const drawOrder = drawKeyToOrderMap[gS.ctxStyle.drawOrder]; // optional separation of stroke / fill layers
     for(let drawSet of drawOrder){
       for (let af of affineset) {
+        const path = mappedPath(lctx, af);
         lctx.beginPath();
-        let Tpt = af.on(this.points[0][0], this.points[0][1]);
-        lctx.moveTo(Tpt[0], Tpt[1]);
+        path.moveTo(this.points[0]);
         for(let pt of this.points.slice(1)) {
-          Tpt = af.on(pt[0], pt[1]);
-          lctx.lineTo(Tpt[0], Tpt[1]);
+          path.lineTo(pt);
         }
         for(let drawFunc of drawSet){
           lctx[drawFunc]();

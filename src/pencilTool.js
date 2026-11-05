@@ -19,6 +19,7 @@ import {gS,
 import _ from 'underscore';
 //import {l2dist} from './math_utils';
 import {parseColor} from './canvas_utils';
+import {mappedPath} from './mappedPath';
 
 import {simplifyPoints} from './simplifyPoints'; // Douglas-Peucker
 
@@ -37,12 +38,11 @@ export class PencilOp {
     _.assign(ctx, this.ctxStyle);
     updateSymmetry(this.symmState);
     for (let af of affineset) {
+      const path = mappedPath(ctx, af);
       ctx.beginPath();
-      const Tpt0 = af.onVec(this.points[0]);
-      ctx.moveTo(Tpt0[0], Tpt0[1]);
+      path.moveTo(this.points[0]);
       for (let pt of this.points.slice(1)) {
-        const Tpt = af.onVec(pt);
-        ctx.lineTo(Tpt[0], Tpt[1]);
+        path.lineTo(pt);
       }
       ctx.stroke();
     }
@@ -82,12 +82,11 @@ export class PencilTool {
     lctx.clearRect(0, 0, canvas.width, canvas.height);
     let simplifiedPoints = simplifyPoints(this.points, this.options.simplify.val, true);
     for (let af of affineset) {
+      const path = mappedPath(lctx, af);
       lctx.beginPath();
-      const Tpt0 = af.onVec(simplifiedPoints[0]);
-      lctx.moveTo(Tpt0[0], Tpt0[1]);
+      path.moveTo(simplifiedPoints[0]);
       for (let pt of simplifiedPoints.slice(1)) {
-        const Tpt = af.onVec(pt);
-        lctx.lineTo(Tpt[0], Tpt[1]);
+        path.lineTo(pt);
       }
       lctx.stroke();
     }
