@@ -12,7 +12,8 @@
 // DRAWING GLOBALS
 import {gS,
         livecanvas, lctx, canvas, ctx,
-        affineset, updateSymmetry, updateStyle, drawKeyToOrderMap,
+        drawKeyToOrderMap, symmetrySet,
+        startBrush, loadBrush, clearBrush, liveStyle, liveSymmetry,
         commitOp
        } from './main';
 import _ from 'underscore';
@@ -33,9 +34,8 @@ export class LineOp {
 
   render(ctx){
     _.assign(ctx, this.ctxStyle);
-    updateSymmetry(this.symmState);
     //gS.$emit('symmUpdate', this.symmState);
-    for (let af of affineset) {
+    for (let af of symmetrySet(this.symmState)) {
       const path = mappedPath(ctx, af);
       ctx.beginPath();
       path.moveTo(this.points[0]);
@@ -64,8 +64,9 @@ export class LineTool {
   }
 
   liverender() {
+    _.assign(lctx, liveStyle(this));
     lctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (let af of affineset) {
+    for (let af of liveSymmetry(this)) {
       const path = mappedPath(lctx, af);
       lctx.beginPath();
       path.moveTo(this.points[0]);
@@ -78,8 +79,7 @@ export class LineTool {
 
   enter(op){
     if(op){
-        updateStyle(op.ctxStyle);
-        updateSymmetry(op.symmState);
+        loadBrush(this, op);
         this.points = op.points;
         this.state = _OFF_;
         this.liverender();
@@ -90,21 +90,24 @@ export class LineTool {
   }
 
   exit(){
+    clearBrush(this);
       this.points = [[0,0],[0,0]];
       this.state = _INIT_;
   }
 
   commit() {
     if(this.state == _INIT_){return;}
-    let ctxStyle = _.clone(gS.ctxStyle);
-    let symmState = _.clone(gS.symmState);
+    let ctxStyle = _.clone(liveStyle(this));
+    let symmState = _.clone(this.symmState || gS.symmState);
     commitOp(new LineOp(symmState, ctxStyle, this.points));
+    clearBrush(this);
     lctx.clearRect(0, 0, livecanvas.width, livecanvas.height);
     this.points = [[0,0],[0,0]];
     this.state = _INIT_;
   }
 
   cancel() {
+    clearBrush(this);
     lctx.clearRect(0, 0, livecanvas.width, livecanvas.height);
     this.state = _INIT_;
     this.points = [[0,0],[0,0]];
@@ -122,6 +125,7 @@ export class LineTool {
         this.commit();
       }
       this.state = _ON_;
+      startBrush(this);
       this.points = [pt, pt];
     }
   }

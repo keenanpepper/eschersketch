@@ -12,7 +12,8 @@
 // DRAWING GLOBALS
 import {gS,
         livecanvas, lctx, canvas, ctx,
-        affineset, updateSymmetry, updateStyle, drawKeyToOrderMap,
+        drawKeyToOrderMap, symmetrySet,
+        startBrush, loadBrush, clearBrush, liveStyle, liveSymmetry,
         commitOp
        } from './main';
 import _ from 'underscore';
@@ -38,10 +39,9 @@ export class CircleOp {
 
   render(ctx){
     _.assign(ctx, this.ctxStyle);
-    updateSymmetry(this.symmState);
     const drawOrder = drawKeyToOrderMap[this.ctxStyle.drawOrder]; // optional separation of stroke / fill layers
     for(let drawSet of drawOrder){
-      for (let af of affineset) {
+      for (let af of symmetrySet(this.symmState)) {
         ctx.beginPath();
         mappedPath(ctx, af).ellipse(this.points[0], this.points[1], this.points[2], Math.PI/180.0 * this.options.arcAngle);
         for(let drawFunc of drawSet){ //drawFunc = "stroke" or "fill"
@@ -84,11 +84,12 @@ export class CircleTool {
   }
 
   liverender() {
+    _.assign(lctx, liveStyle(this));
     lctx.clearRect(0, 0, canvas.width, canvas.height);
     //const drawOrder = [["stroke"], ["fill"]];
-    const drawOrder = drawKeyToOrderMap[gS.ctxStyle.drawOrder]; // optional separation of stroke / fill layers
+    const drawOrder = drawKeyToOrderMap[liveStyle(this).drawOrder]; // optional separation of stroke / fill layers
     for(let drawSet of drawOrder){
-      for (let af of affineset) {
+      for (let af of liveSymmetry(this)) {
         lctx.beginPath();
         mappedPath(lctx, af).ellipse(this.points[0], this.points[1], this.points[2], Math.PI/180.0*this.options.arcAngle.val);
         for(let drawFunc of drawSet){ //drawFunc = "stroke" or "fill"
@@ -105,8 +106,7 @@ export class CircleTool {
 
   enter(op){
     if(op){
-        updateStyle(op.ctxStyle);
-        updateSymmetry(op.symmState);
+        loadBrush(this, op);
         for(let key of Object.keys(op.options)){
           this.options[key].val = op.options[key];
         }
@@ -120,21 +120,24 @@ export class CircleTool {
   }
 
   exit(){
+    clearBrush(this);
       this.points = [[0,0],[0,0],[0,0]];
       this.state = _INIT_;
   }
 
   commit() {
     if(this.state == _INIT_){return;}
-    let ctxStyle = _.clone(gS.ctxStyle);
-    let symmState = _.clone(gS.symmState);
+    let ctxStyle = _.clone(liveStyle(this));
+    let symmState = _.clone(this.symmState || gS.symmState);
     commitOp(new CircleOp(symmState, ctxStyle, this.points, bakeOptions(this.options)));
+    clearBrush(this);
     lctx.clearRect(0, 0, livecanvas.width, livecanvas.height);
     this.points = [[0,0],[0,0],[0,0]];
     this.state = _INIT_;
   }
 
   cancel() {
+    clearBrush(this);
     lctx.clearRect(0, 0, livecanvas.width, livecanvas.height);
     this.points = [[0,0],[0,0],[0,0]];
     this.state = _INIT_;
@@ -154,6 +157,7 @@ export class CircleTool {
         this.commit();
       }
       this.state = _ON_;
+      startBrush(this);
       this.points = [pt, pt, pt];
     }
   }

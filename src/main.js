@@ -286,42 +286,72 @@ const memo_generateTiling = _.memoize(generateTiling,
 const memo_generateHyperbolic = _.memoize(generateHyperbolic,
                                 function(){return JSON.stringify(arguments);});
 
+// The transforms for a symmetry state. Doesn't touch global state, so committed ops can render
+// with their own symmetry. With dynamicGridSize, the planar grid size follows the canvas size
+// rather than the state's Nx, Ny.
+export const symmetrySet = function(symmState) {
+  const s = _.clone(symmState);
+  if(gS.options.dynamicGridSize) {
+    let newNx = Math.round((gS.params.canvasWidth  / s.d)*2);
+    let newNy = Math.round((gS.params.canvasHeight / s.d)*2);
+    // basic safety so as not to grind CPU to a halt...
+    s.Nx = newNx < gS.options.maxGridNx ? newNx : gS.options.maxGridNx;
+    s.Ny = newNy < gS.options.maxGridNy ? newNy : gS.options.maxGridNy;
+  }
+
+  if(s.sym == "none"){
+    return IdentitySet();
+  }
+  else if(Object.keys(planarSymmetries).includes(s.sym)) {
+    return memo_generateTiling(planarSymmetries[s.sym], s.Nx, s.Ny, s.d, s.t, s.x, s.y);
+  }
+  else if(Object.keys(hyperbolicSymmetries).includes(s.sym)) {
+    return memo_generateHyperbolic(hyperbolicSymmetries[s.sym], s.Nx, s.Ny, s.d, s.t, s.x, s.y);
+  }
+  else {
+    return RosetteGroup(s.Nrot, s.Nref, s.x, s.y, s.rot/180.0*Math.PI);
+  }
+};
+
+// Updates the brush's symmetry (the global gS.symmState) and its transforms (affineset).
 export const updateSymmetry = function(symmState) {
-
   _.assign(gS.symmState, symmState);
-
   if(gS.options.dynamicGridSize) {
     let newNx = Math.round((gS.params.canvasWidth  / gS.symmState.d)*2);
     let newNy = Math.round((gS.params.canvasHeight / gS.symmState.d)*2);
-    // basic safety so as not to grind CPU to a halt...
     gS.symmState.Nx = newNx < gS.options.maxGridNx ? newNx : gS.options.maxGridNx;
     gS.symmState.Ny = newNy < gS.options.maxGridNy ? newNy : gS.options.maxGridNy;
-    // console.log("grid Nx", gS.symmState.Nx, "Ny", gS.symmState.Ny);
   }
-
-  if(gS.symmState.sym == "none"){
-    affineset = IdentitySet();
-  }
-  else if(Object.keys(planarSymmetries).includes(gS.symmState.sym)) {
-    affineset = memo_generateTiling(planarSymmetries[gS.symmState.sym],
-                                    gS.symmState.Nx,gS.symmState.Ny,
-                                    gS.symmState.d, gS.symmState.t,
-                                    gS.symmState.x, gS.symmState.y);
-  }
-  else if(Object.keys(hyperbolicSymmetries).includes(gS.symmState.sym)) {
-    affineset = memo_generateHyperbolic(hyperbolicSymmetries[gS.symmState.sym],
-                                        gS.symmState.Nx,gS.symmState.Ny,
-                                        gS.symmState.d, gS.symmState.t,
-                                        gS.symmState.x, gS.symmState.y);
-  }
-  else {
-    affineset = RosetteGroup(gS.symmState.Nrot,
-                            gS.symmState.Nref,
-                            gS.symmState.x,
-                            gS.symmState.y,
-                            gS.symmState.rot/180.0*Math.PI);
-  }
+  affineset = symmetrySet(gS.symmState);
 };
+
+// Brush: the style and symmetry a shape is drawn with
+//-------------------------------------------------------------------------------------------------
+// The palette (gS.ctxStyle and gS.symmState) is the brush. A tool copies it into itself when a
+// shape is started, and that shape's live preview, its committed op and every later render
+// use the copy, so palette changes only affect shapes started afterwards.
+
+// start a new shape with the current palette
+export const startBrush = function(tool) {
+  tool.ctxStyle = _.clone(gS.ctxStyle);
+  tool.symmState = _.clone(gS.symmState);
+};
+
+// re-enter an existing op (undo/redo) with its own brush, leaving the palette alone
+export const loadBrush = function(tool, op) {
+  tool.ctxStyle = _.clone(op.ctxStyle);
+  tool.symmState = _.clone(op.symmState);
+};
+
+// no live shape anymore
+export const clearBrush = function(tool) {
+  tool.ctxStyle = null;
+  tool.symmState = null;
+};
+
+// the style and transforms for drawing a tool's live shape (the palette's, if it has no shape)
+export const liveStyle = tool => tool.ctxStyle || gS.ctxStyle;
+export const liveSymmetry = tool => symmetrySet(tool.symmState || gS.symmState);
 
 
 // Set up Globals and UI for calling into Drawing Tools
@@ -472,6 +502,10 @@ export const deserialize = function(jsonStr){
     newstack.push(restoreOp(obj));
   }
   cmdStack = newstack;
+  // keep drawing in the group of the last op (rendering ops no longer sets the brush's symmetry)
+  if(newstack.length > 0){
+    updateSymmetry(newstack[newstack.length-1].symmState);
+  }
   rerender(ctx);
 }
 
@@ -642,6 +676,10 @@ export const fetchFromCloud = function(jsonStr){
     newstack.push(restoreOp(obj));
   }
   cmdStack = newstack;
+  // keep drawing in the group of the last op (rendering ops no longer sets the brush's symmetry)
+  if(newstack.length > 0){
+    updateSymmetry(newstack[newstack.length-1].symmState);
+  }
   rerender(ctx);
 }
 

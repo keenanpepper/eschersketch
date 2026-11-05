@@ -12,7 +12,8 @@
 // DRAWING GLOBALS
 import {gS,
         livecanvas, lctx, canvas, ctx,
-        affineset, updateSymmetry, updateStyle, drawKeyToOrderMap,
+        drawKeyToOrderMap, symmetrySet,
+        startBrush, loadBrush, clearBrush, liveStyle, liveSymmetry,
         //pressure,
         commitOp
        } from './main';
@@ -36,8 +37,7 @@ export class PencilOp {
 
   render(ctx){
     _.assign(ctx, this.ctxStyle);
-    updateSymmetry(this.symmState);
-    for (let af of affineset) {
+    for (let af of symmetrySet(this.symmState)) {
       const path = mappedPath(ctx, af);
       ctx.beginPath();
       path.moveTo(this.points[0]);
@@ -78,10 +78,11 @@ export class PencilTool {
   }
 
   liverender_precise() {
+    _.assign(lctx, liveStyle(this));
     if(this.state===_INIT_){return;} //empty data case
     lctx.clearRect(0, 0, canvas.width, canvas.height);
     let simplifiedPoints = simplifyPoints(this.points, this.options.simplify.val, true);
-    for (let af of affineset) {
+    for (let af of liveSymmetry(this)) {
       const path = mappedPath(lctx, af);
       lctx.beginPath();
       path.moveTo(simplifiedPoints[0]);
@@ -95,13 +96,14 @@ export class PencilTool {
   // fast, hacky live rendering routine that adds points to path as they're added instead of redrawing
   // the entire path for each added point - quite expensive for long paths with all of the symmetric draw calls!
   liverender_fast() {
+    _.assign(lctx, liveStyle(this));
     lctx.save();
     // correct alpha to give accurate preview transparency given the 3-pt line overlap that this hack uses:
     let alpha = parseColor(lctx.strokeStyle)[3];
     lctx.globalAlpha = 0.5 + 0.5*Math.pow(alpha,2);
 
     if(this.points.length >= 3) {
-      for (let af of affineset) {
+      for (let af of liveSymmetry(this)) {
         const Tpt0 = af.onVec(this.points[this.points.length-3]);
         const Tpt1 = af.onVec(this.points[this.points.length-2]);
         const Tpt2 = af.onVec(this.points[this.points.length-1]);
@@ -118,7 +120,7 @@ export class PencilTool {
         //lctx.restore();
       }
     } else if(this.points.length >= 2){
-      for (let af of affineset) {
+      for (let af of liveSymmetry(this)) {
         const Tpt0 = af.onVec(this.points[this.points.length-2]);
         const Tpt1 = af.onVec(this.points[this.points.length-1]);
         lctx.beginPath();
@@ -132,8 +134,7 @@ export class PencilTool {
 
   enter(op){
     if(op){
-        updateStyle(op.ctxStyle);
-        updateSymmetry(op.symmState);
+        loadBrush(this, op);
         if(op.options){
           for(let key of Object.keys(op.options)){
             this.options[key].val = op.options[key];
@@ -149,16 +150,18 @@ export class PencilTool {
   }
 
   exit(){
+    clearBrush(this);
     this.points = [];
     this.state = _INIT_;
   }
 
   commit() {
     if(this.state===_INIT_){return;} //empty data case
-    let ctxStyle = _.clone(gS.ctxStyle);
-    let symmState = _.clone(gS.symmState);
+    let ctxStyle = _.clone(liveStyle(this));
+    let symmState = _.clone(this.symmState || gS.symmState);
     let simplifiedPoints = simplifyPoints(this.points, this.options.simplify.val, true);
     commitOp(new PencilOp(symmState, ctxStyle, simplifiedPoints, bakeOptions(this.options)));
+    clearBrush(this);
     //console.log("pencil: point reduction", this.points.length, simplifiedPoints.length);
     lctx.clearRect(0, 0, livecanvas.width, livecanvas.height);
     this.points = [];
@@ -166,6 +169,7 @@ export class PencilTool {
   }
 
   cancel() {
+    clearBrush(this);
     lctx.clearRect(0, 0, livecanvas.width, livecanvas.height);
     this.points = [];
     this.state = _INIT_;
@@ -176,6 +180,7 @@ export class PencilTool {
       this.commit(); //XXX: commit on new line
     }
     this.state = _ON_;
+    startBrush(this);
     let {left, top} = livecanvas.getBoundingClientRect();
     this.points = [[e.clientX - left, e.clientY - top]];
   }
